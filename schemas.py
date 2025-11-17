@@ -1,48 +1,72 @@
 """
-Database Schemas
+Database Schemas for India Agro Tech Milk Plant
 
-Define your MongoDB collection schemas here using Pydantic models.
-These schemas are used for data validation in your application.
+Each Pydantic model represents a MongoDB collection (collection name is the lowercase of the class name).
 
-Each Pydantic model represents a collection in your database.
-Model name is converted to lowercase for the collection name:
-- User -> "user" collection
-- Product -> "product" collection
-- BlogPost -> "blogs" collection
+Roles:
+- super_admin: Full access to everything across plants
+- admin: Plant-level management for assigned plant
+- farmer: Can view own profile and delivery history
+- feeder: Records milk collection from farmers
+- tester: Records quality tests for collected milk
 """
+from typing import Optional, List, Literal
+from pydantic import BaseModel, Field, EmailStr
+from datetime import datetime
 
-from pydantic import BaseModel, Field
-from typing import Optional
 
-# Example schemas (replace with your own):
+class Plant(BaseModel):
+    name: str = Field(..., description="Plant name")
+    location: Optional[str] = Field(None, description="Plant location")
+    code: Optional[str] = Field(None, description="Unique plant code")
+
 
 class User(BaseModel):
-    """
-    Users collection schema
-    Collection name: "user" (lowercase of class name)
-    """
-    name: str = Field(..., description="Full name")
-    email: str = Field(..., description="Email address")
-    address: str = Field(..., description="Address")
-    age: Optional[int] = Field(None, ge=0, le=120, description="Age in years")
-    is_active: bool = Field(True, description="Whether user is active")
+    full_name: str = Field(..., description="Full name")
+    email: EmailStr = Field(..., description="Email address")
+    phone: Optional[str] = Field(None, description="Phone number")
+    role: Literal["super_admin", "admin", "farmer", "feeder", "tester"] = Field(..., description="Role of the user")
+    plant_id: Optional[str] = Field(None, description="Assigned plant id for non-super roles")
+    is_active: bool = Field(True, description="Active status")
 
-class Product(BaseModel):
-    """
-    Products collection schema
-    Collection name: "product" (lowercase of class name)
-    """
-    title: str = Field(..., description="Product title")
-    description: Optional[str] = Field(None, description="Product description")
-    price: float = Field(..., ge=0, description="Price in dollars")
-    category: str = Field(..., description="Product category")
-    in_stock: bool = Field(True, description="Whether product is in stock")
 
-# Add your own schemas here:
-# --------------------------------------------------
+class FarmerProfile(BaseModel):
+    user_id: str = Field(..., description="Reference to user document")
+    farm_name: Optional[str] = None
+    village: Optional[str] = None
+    milk_animal_count: Optional[int] = Field(default=0, ge=0)
 
-# Note: The Flames database viewer will automatically:
-# 1. Read these schemas from GET /schema endpoint
-# 2. Use them for document validation when creating/editing
-# 3. Handle all database operations (CRUD) directly
-# 4. You don't need to create any database endpoints!
+
+class MilkCollection(BaseModel):
+    date: datetime = Field(default_factory=datetime.utcnow)
+    plant_id: str = Field(...)
+    farmer_id: str = Field(...)
+    feeder_id: str = Field(...)
+    quantity_liters: float = Field(..., ge=0)
+    fat: Optional[float] = Field(None, ge=0, le=100)
+    snf: Optional[float] = Field(None, ge=0, le=100)
+    shift: Literal["morning", "evening"] = Field(...)
+
+
+class QualityTest(BaseModel):
+    plant_id: str
+    collection_id: str
+    tester_id: str
+    acidity: Optional[float] = Field(None, ge=0, le=100)
+    adulteration: Optional[bool] = False
+    remarks: Optional[str] = None
+    date: datetime = Field(default_factory=datetime.utcnow)
+
+
+class Duty(BaseModel):
+    role: Literal["super_admin", "admin", "farmer", "feeder", "tester"]
+    title: str
+    description: Optional[str] = None
+
+
+# Public schema endpoint support (optional helpful for viewers)
+class SchemaInfo(BaseModel):
+    collections: List[str]
+"""
+Note: The Flames database viewer may read these via /schema endpoint for inspection.
+"""
